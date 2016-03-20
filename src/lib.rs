@@ -9,7 +9,7 @@ use std::ffi::*;
 /// Result of opening a file dialog
 pub enum NFDResult {
     /// User pressed okay. `String` is the file path selected
-    Okay(String),
+    Okay(Vec<String>),
     /// User pressed cancel
     Cancel,
     /// Program error. `String` is the error description
@@ -18,6 +18,7 @@ pub enum NFDResult {
 
 enum DialogType {
     SingleFile,
+    MultiFile,
     SaveFile
 }
 
@@ -25,6 +26,10 @@ enum DialogType {
 #[inline(always)]
 pub fn open_file_dialog(filter_list: Option<&str>, default_path: Option<&str>) -> NFDResult {
     open_dialog(filter_list, default_path, &DialogType::SingleFile)
+}
+
+pub fn open_multiple_dialog(filter_list: Option<&str>, default_path: Option<&str>) -> NFDResult {
+    open_dialog(filter_list, default_path, &DialogType::MultiFile)
 }
 
 /// Open save dialog
@@ -64,6 +69,10 @@ fn open_dialog(filter_list: Option<&str>, default_path: Option<&str>, dialog_typ
                 NFD_OpenDialog(filter_list_ptr, default_path_ptr, ptr_out_path)
             },
 
+            &DialogType::MultiFile => {
+                unimplemented!();
+            },
+
             &DialogType::SaveFile => {
                 NFD_SaveDialog(filter_list_ptr, default_path_ptr, ptr_out_path)
             },
@@ -79,7 +88,7 @@ fn open_dialog(filter_list: Option<&str>, default_path: Option<&str>, dialog_typ
     let result_string = result_cstring.to_str().unwrap().to_string();
 
     match result {
-        nfdresult_t::NFD_OKAY => NFDResult::Okay(result_string),
+        nfdresult_t::NFD_OKAY => NFDResult::Okay(vec![result_string]),
         nfdresult_t::NFD_CANCEL => NFDResult::Cancel,
         nfdresult_t::NFD_ERROR => NFDResult::Error(result_string)
     }
