@@ -3,7 +3,7 @@ extern crate libc;
 mod ffi;
 
 use ffi::*;
-use libc::c_char;
+use libc::{c_char, size_t};
 use std::ffi::*;
 
 /// Result of opening a file dialog
@@ -40,7 +40,6 @@ pub fn open_save_dialog(filter_list: Option<&str>, default_path: Option<&str>) -
 
 fn open_dialog(filter_list: Option<&str>, default_path: Option<&str>, dialog_type: &DialogType) -> NFDResult {
     let result: nfdresult_t;
-    let result_cstring;
 
     let filter_list_cstring;
     let filter_list_ptr = match filter_list {
@@ -63,6 +62,13 @@ fn open_dialog(filter_list: Option<&str>, default_path: Option<&str>, dialog_typ
     let mut out_path: *mut c_char = std::ptr::null_mut();
     let ptr_out_path = &mut out_path as *mut *mut c_char;
 
+    let mut out_paths = nfdpathset_t {
+        buf: 0 as *mut c_char,
+        indices: 0 as *mut size_t,
+        count: 0
+    };
+    let ptr_out_paths = &mut out_paths as *mut nfdpathset_t;
+
     unsafe {
         result = match dialog_type {
             &DialogType::SingleFile => {
@@ -70,7 +76,7 @@ fn open_dialog(filter_list: Option<&str>, default_path: Option<&str>, dialog_typ
             },
 
             &DialogType::MultiFile => {
-                unimplemented!();
+                NFD_OpenDialogMultiple(filter_list_ptr, default_path_ptr, ptr_out_paths)
             },
 
             &DialogType::SaveFile => {
@@ -78,18 +84,33 @@ fn open_dialog(filter_list: Option<&str>, default_path: Option<&str>, dialog_typ
             },
         };
 
-        result_cstring = match result {
-            nfdresult_t::NFD_OKAY => CStr::from_ptr(out_path).to_owned(),
-            nfdresult_t::NFD_ERROR => CStr::from_ptr(NFD_GetError()).to_owned(),
-            _ => CString::new("").unwrap()
+
+        match result {
+            nfdresult_t::NFD_CANCEL => {
+                return NFDResult::Cancel;
+            },
+            nfdresult_t::NFD_ERROR => {
+                let err = CStr::from_ptr(NFD_GetError()).to_owned();
+                return NFDResult::Error(err.to_str().unwrap().to_string());
+            },
+            _ => {}
         }
-    }
 
-    let result_string = result_cstring.to_str().unwrap().to_string();
-
-    match result {
-        nfdresult_t::NFD_OKAY => NFDResult::Okay(vec![result_string]),
-        nfdresult_t::NFD_CANCEL => NFDResult::Cancel,
-        nfdresult_t::NFD_ERROR => NFDResult::Error(result_string)
+        match dialog_type {
+            &DialogType::MultiFile => {
+                let mut res = Vec::new();
+                let count = NFD_PathSet_GetCount(&out_paths);
+                for i in 0..count {
+                    let path = CStr::from_ptr(NFD_PathSet_GetPath(&out_paths, i)).to_owned();
+                    res.push(path.to_str().unwrap().to_string());
+                }
+                NFD_PathSet_Free(ptr_out_paths);
+                NFDResult::Okay(res)
+            },
+            _ => {
+                let res = CStr::from_ptr(out_path).to_owned();
+                NFDResult::Okay(vec![res.to_str().unwrap().to_string()])
+            }
+        }
     }
 }

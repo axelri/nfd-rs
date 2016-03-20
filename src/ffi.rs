@@ -9,9 +9,9 @@ pub enum nfdresult_t {
 
 #[repr(C)]
 pub struct nfdpathset_t {
-    buf: *mut c_char,
-    indices: *mut size_t,
-    count: size_t,
+    pub buf: *mut c_char,
+    pub indices: *mut size_t,
+    pub count: size_t,
 }
 
 #[link(name = "nfd")]
@@ -28,7 +28,7 @@ extern "C" {
 
     pub fn NFD_OpenDialogMultiple(filter_list: *const c_char,
                                   default_path: *const c_char,
-                                  outPaths: *mut *mut c_char)
+                                  outPaths: *mut nfdpathset_t)
                                   -> nfdresult_t;
 
     pub fn NFD_GetError() -> *const c_char;
